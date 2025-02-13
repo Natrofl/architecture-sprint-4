@@ -1,0 +1,55 @@
+@startuml TracingSystemC4
+!include https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Container.puml
+LAYOUT_LEFT_RIGHT()
+
+Person(customer, "Клиент", "Создает заказ через Интернет-магазин")
+Person(seller, "Продавец", "Работает с заказами, подтверждает производство")
+Person(apiUser, "Пользователь API", "Взаимодействует с API системы MES")
+Person(operator, "Оператор", "Принимает заказы в работу, производит изделия")
+
+Boundary(jewelrySystem, "Система Магазина Украшений") {
+
+  Container(internetShop, "Интернет-магазин", "Vue, TS, ThreeJS", "Пользователь может оформить заказ, загрузить 3D модель, работать в 3D редакторе")
+  Container(shopApi, "Shop API", "SpringBoot", "- Предоставляет список товаров\n- Принимает пользовательский 3D файл\n- Сохраняет информацию о заказе")
+  ContainerDb(shopDb, "БД магазина", "PostgreSQL", "Содержит основную информацию о клиентах и заказах")
+
+  Container(crm, "CRM", "Vue, TS", "Система управления заказами и их подтверждения")
+  Container(crmApi, "API CRM", "SpringBoot", "Обрабатывает статусы заказов и взаимодействие с 3D хранилищем")
+
+  Container(mes, "MES", "React, TS", "Интерфейс для назначения заказов операторам, отображает список заказов")
+  Container(mesApi, "API MES", "C#", "- Назначает заказы операторам\n- Показывает список заказов\n- Рассчитывает стоимость заказа")
+  ContainerDb(mesDb, "БД MES", "PostgreSQL", "Содержит информацию о заказах, назначениях, статусах с точки зрения MES")
+
+  ContainerQueue(rmq, "Очередь сообщений", "RabbitMQ", "Отправляет и принимает сообщения о новых заказах, изменениях статусов (двунаправлено)")
+  Container(fileStorage, "Хранилище 3D файлов", "S3-based", "Хранит 3D файлы для расчетов")
+
+  Container(otelCollector, "OpenTelemetry Collector", "OpenTelemetry", "Собирает и экспортирует трассировки в Jaeger") #red
+  Container(jaeger, "Jaeger", "Распределенный трейсинг", "Хранит спаны, предлагает интерфейс для визуализации цепочек вызовов") #red
+  Container(alerts, "Менеджер оповещений / Grafana", "Prometheus stack", "Визуализирует метрики, устанавливает оповещения для медленных или зависших заказов") #green
+}
+
+Rel(customer, internetShop, "Использует")
+Rel(seller, crm, "Использует")
+Rel(operator, mes, "Использует")
+Rel(apiUser, mesApi, "Вызывает API")
+Rel(internetShop, shopApi, "REST/HTTPS")
+Rel(shopApi, shopDb, "SQL/JDBC")
+Rel(crm, crmApi, "REST/HTTPS")
+Rel(crmApi, shopDb, "SQL/JDBC")
+Rel(crmApi, rmq, "Публикует сообщения")
+Rel(rmq, crmApi, "Потребляет сообщения")
+Rel(mesApi, rmq, "Публикует сообщения")
+Rel(rmq, mesApi, "Потребляет сообщения")
+Rel(mes, mesApi, "REST/HTTPS")
+Rel(mesApi, mesDb, "SQL/JDBC")
+Rel(mesApi, fileStorage, "Загружает 3D файлы")
+Rel(shopApi, fileStorage, "Загружает 3D файлы")
+Rel(crmApi, fileStorage, "Считывает/загружает 3D файлы")
+
+Rel(shopApi, otelCollector, "Отправляет трассировки (OTLP)")
+Rel(crmApi, otelCollector, "Отправляет трассировки (OTLP)")
+Rel(mesApi, otelCollector, "Отправляет трассировки (OTLP)")
+Rel(otelCollector, jaeger, "Экспортирует спаны")
+Rel(otelCollector, alerts, "Экспортирует метрики/трассировки для оповещений")
+
+@enduml
