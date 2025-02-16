@@ -1,0 +1,59 @@
+@startuml LoggingSystemC4
+!include https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Container.puml
+LAYOUT_LEFT_RIGHT()
+
+Person(customer, "Клиент", "Создает заказ через Интернет-магазин")
+Person(seller, "Продавец", "Работает с заказами через CRM")
+Person(apiUser, "Пользователь API", "Взаимодействует с MES API")
+Person(operator, "Оператор", "Производит изделия через MES")
+
+Boundary(jewelrySystem, "Система магазина украшений") {
+
+  Container(internetShop, "Интернет-магазин", "Vue, TS, ThreeJS", "Пользователь может оформить заказ, загрузить 3D модель")
+  Container(shopApi, "API магазина", "SpringBoot", "Обрабатывает заказы, файлы, взаимодействует с базой данных магазина") #blue
+  ContainerDb(shopDb, "БД магазина", "PostgreSQL", "Данные о клиентах и заказах") #blue
+
+  Container(crm, "CRM", "Vue, TS", "Продавцы подтверждают заказы")
+  Container(crmApi, "API CRM", "SpringBoot", "Обрабатывает статусы заказов, взаимодействует с RabbitMQ и хранилищем 3D файлов") #blue
+
+  Container(mes, "MES", "React, TS", "Операторы управляют производством")
+  Container(mesApi, "API MES", "C#", "Рассчитывает цену, взаимодействует с БД MES и RabbitMQ") #blue
+  ContainerDb(mesDb, "БД MES", "PostgreSQL", "Хранит детали производства") #blue
+
+  ContainerQueue(rmq, "Очередь сообщений", "RabbitMQ", "Двунаправленный обмен сообщениями о статусах") #blue
+
+  Container(fileStorage, "Хранилище 3D файлов", "S3-based", "Хранит 3D модели") #blue
+
+  Container(logAggregator, "Агрегатор логов", "Fluent Bit / Logstash", "Собирает логи из #blue контейнеров") #red
+  Container(logStorage, "Хранилище логов", "Elasticsearch", "Центральное место для поиска и анализа логов") #red
+
+}
+
+Rel(customer, internetShop, "Использует")
+Rel(internetShop, shopApi, "REST/HTTPS")
+Rel(shopApi, shopDb, "SQL/JDBC")
+Rel(seller, crm, "Использует")
+Rel(crm, crmApi, "REST/HTTPS")
+Rel(crmApi, shopDb, "SQL/JDBC")
+Rel(crmApi, rmq, "Публикует сообщения")
+Rel(rmq, crmApi, "Потребляет сообщения")
+Rel(mesApi, rmq, "Публикует сообщения")
+Rel(rmq, mesApi, "Потребляет сообщения")
+Rel(operator, mes, "Использует")
+Rel(mes, mesApi, "REST/HTTPS")
+Rel(mesApi, mesDb, "SQL/JDBC")
+Rel(mesApi, fileStorage, "Читает/записывает 3D файлы")
+Rel(shopApi, fileStorage, "Загружает 3D файлы")
+Rel(crmApi, fileStorage, "Загружает/загружает файлы")
+
+Rel(shopApi, logAggregator, "Отправляет логи")
+Rel(shopDb, logAggregator, "Логи/запросы БД")
+Rel(crmApi, logAggregator, "Отправляет логи")
+Rel(mesApi, logAggregator, "Отправляет логи")
+Rel(mesDb, logAggregator, "Логи/запросы БД")
+Rel(rmq, logAggregator, "Публикует события/логи RabbitMQ")
+Rel(fileStorage, logAggregator, "Аудит-логи (PUT/GET)")
+
+Rel(logAggregator, logStorage, "Хранит логи для анализа")
+
+@enduml

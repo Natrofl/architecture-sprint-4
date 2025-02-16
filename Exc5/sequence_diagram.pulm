@@ -1,0 +1,40 @@
+@startuml
+
+autonumber
+
+title Диаграмма последовательности: Чтение заказов и изменение статуса с Cache-Aside
+
+actor Оператор
+participant MES_Frontend as "MES (React)"
+participant MES_API as "MES API (C#)"
+participant Cache as "Кеш (Redis)"
+participant DB as "База данных (MES DB)"
+
+Оператор -> MES_Frontend: Открыть страницу заказов
+MES_Frontend -> MES_API: GET /orders
+
+alt Кеш-попадание
+    MES_API -> Cache: Получить заказы из кеша
+    Cache --> MES_API: Вернуть закешированные заказы
+else Кеш-промах
+    MES_API -> DB: Загрузить заказы из базы данных
+    DB --> MES_API: Вернуть список заказов
+    
+    MES_API -> Cache: Сохранить заказы в кеш
+end
+
+MES_API --> MES_Frontend: Вернуть заказы в интерфейс
+
+Оператор -> MES_Frontend: Нажать "Завершить"
+MES_Frontend -> MES_API: Обновить статус заказа
+
+MES_API -> DB: Обновить статус в базе данных
+DB --> MES_API: Подтвердить обновление
+
+note over MES_API: Инвалидация кеша
+MES_API -> Cache: Удалить запись из кеша
+Cache --> MES_API: Подтверждение
+
+MES_API --> MES_Frontend: Подтвердить изменение статуса
+
+@enduml
